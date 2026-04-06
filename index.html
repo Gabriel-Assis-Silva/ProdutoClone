@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dark MD Editor</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h3>Documentos</h3>
+            <button onclick="createNewInstance()" class="btn-new" title="Novo">+</button>
+        </div>
+        <div id="instance-list" class="instance-list"></div>
+        <div class="sidebar-footer">
+            <label class="autosave-toggle">
+                <input type="checkbox" id="autosave-check" checked onchange="toggleAutosave()">
+                <span>Auto-save</span>
+            </label>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <header class="toolbar">
+            <div class="group">
+                <button onclick="applyStyle('bold')">B</button>
+                <button onclick="applyStyle('italic')">I</button>
+                <button onclick="applyStyle('heading')">H</button>
+                <button onclick="applyStyle('code')">&lt;/&gt;</button>
+            </div>
+            <div class="group">
+                <span id="save-status"></span>
+                <button id="save-btn" onclick="manualSave()" class="btn-save">Salvar</button>
+                <button onclick="deleteCurrentInstance()" class="btn-danger">Excluir</button>
+            </div>
+        </header>
+
+        <div class="editor-container">
+            <textarea id="editor" spellcheck="false" placeholder="Comece a escrever..."></textarea>
+            <div id="preview" class="markdown-body"></div>
+        </div>
+    </main>
+
+    <script src="userdata.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

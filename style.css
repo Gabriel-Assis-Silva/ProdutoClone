@@ -1,0 +1,121 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: 'Segoe UI', sans-serif;
+    height: 100vh;
+    display: flex;
+    background-color: #1e1e1e;
+    color: white;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 250px;
+    background-color: #252526;
+    border-right: 1px solid #333;
+    display: flex;
+    flex-direction: column;
+}
+.sidebar-header {
+    padding: 15px;
+    border-bottom: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.instance-list {
+    flex: 1;
+    overflow-y: auto;
+}
+.instance-item {
+    padding: 12px 15px;
+    cursor: pointer;
+    border-bottom: 1px solid #2d2d2d;
+    font-size: 14px;
+    display: flex;
+    justify-content: space-between;
+}
+.instance-item:hover { background-color: #2a2d2e; }
+.instance-item.active { background-color: #37373d; border-left: 3px solid #007acc; }
+
+/* Main Content */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+.toolbar {
+    background-color: #333;
+    padding: 8px 15px;
+    display: flex;
+    gap: 20px;
+}
+.editor-container {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+textarea, #preview {
+    width: 50%;
+    height: 100%;
+    padding: 20px;
+    overflow-y: auto;
+    border: none;
+    outline: none;
+}
+textarea {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    font-family: 'Consolas', monospace;
+    font-size: 16px;
+    resize: none;
+    border-right: 1px solid #333;
+}
+#preview { background-color: white; color: #333; }
+
+/* Botões */
+button {
+    padding: 5px 10px;
+    cursor: pointer;
+    background: #444;
+    color: white;
+    border: 1px solid #555;
+    border-radius: 3px;
+}
+button:hover { background: #555; }
+.btn-new { background: #0e639c; border: none; }
+.btn-danger { background: #902727; }
+
+/* ... (estilos anteriores mantidos e adicionados estes abaixo) ... */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', sans-serif; height: 100vh; display: flex; background: #1e1e1e; color: white; overflow: hidden; }
+
+.sidebar { width: 220px; background: #252526; border-right: 1px solid #333; display: flex; flex-direction: column; }
+.sidebar-header { padding: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
+.instance-list { flex: 1; overflow-y: auto; }
+.instance-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #2d2d2d; font-size: 13px; color: #ccc; }
+.instance-item.active { background: #37373d; color: white; border-left: 3px solid #007acc; }
+.sidebar-footer { padding: 10px; border-top: 1px solid #333; font-size: 12px; }
+
+.main-content { flex: 1; display: flex; flex-direction: column; }
+.toolbar { background: #333; padding: 8px 15px; display: flex; gap: 15px; align-items: center; justify-content: space-between; }
+.group { display: flex; gap: 8px; align-items: center; }
+
+.editor-container { flex: 1; display: flex; height: calc(100vh - 45px); }
+textarea, #preview { width: 50%; height: 100%; padding: 20px; border: none; outline: none; }
+textarea { background: #1e1e1e; color: #d4d4d4; font-family: 'Consolas', monospace; resize: none; border-right: 1px solid #333; }
+#preview { background: white; color: #333; overflow-y: auto; }
+
+button { padding: 5px 12px; cursor: pointer; background: #444; color: white; border: 1px solid #555; border-radius: 3px; }
+.btn-save.unsaved { background: #0e639c; border-color: #1177bb; animation: pulse 2s infinite; }
+.btn-danger { background: #902727; border: none; }
+#save-status { font-size: 11px; color: #aaa; }
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+.autosave-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
