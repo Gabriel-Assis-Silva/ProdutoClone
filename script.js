@@ -24,21 +24,33 @@ window.onload = () => {
         searchInput.value = '';
         searchInput.addEventListener('input', renderSidebar);
     }
-    if (currentData.activeId && currentData.files[currentData.activeId]) {
+    // If there are no files, create a default one so the user can start editing immediately
+    const hasFiles = Object.keys(currentData.files || {}).length > 0;
+    if (!hasFiles) {
+        const defaultId = 'file_' + Date.now();
+        currentData.files = currentData.files || {};
+        currentData.files[defaultId] = { title: 'novo-arquivo', content: '', history: [], pinned: false };
+        currentData.activeId = defaultId;
+        saveToDisk();
+        renderSidebar();
+        loadInstance(defaultId);
+    } else if (currentData.activeId && currentData.files[currentData.activeId]) {
         loadInstance(currentData.activeId);
     } else {
-        editor.disabled = true;
-        updateStats();
+        // pick first file if activeId missing
+        const first = Object.keys(currentData.files)[0];
+        if (first) loadInstance(first);
+        else { editor.disabled = true; updateStats(); }
     }
 };
 
 async function createNewInstance() {
-    const res = await showModal({ title: 'Novo arquivo', message: 'Nome do arquivo:', showInput: true, defaultValue: 'novo-arquivo.md', confirmText: 'Criar', cancelText: 'Cancelar' });
+    const res = await showModal({ title: 'Novo arquivo', message: 'Nome do arquivo:', showInput: true, defaultValue: 'novo-arquivo', confirmText: 'Criar', cancelText: 'Cancelar' });
     if (!res.confirmed) return;
     const name = (res.value || '').trim();
     if (!name) return;
     const id = 'file_' + Date.now();
-    currentData.files[id] = { title: name, content: "" };
+    currentData.files[id] = { title: name, content: "", history: [], pinned: false };
     currentData.activeId = id;
     saveToDisk();
     renderSidebar();
@@ -64,36 +76,55 @@ async function loadInstance(id) {
 function renderSidebar() {
     instanceList.innerHTML = "";
     const query = (searchInput && searchInput.value) ? searchInput.value.toLowerCase().trim() : '';
-    Object.keys(currentData.files).forEach(id => {
-        const file = currentData.files[id];
-        if (query && !file.title.toLowerCase().includes(query)) return;
-        const div = document.createElement('div');
-        div.className = `instance-item ${id === currentData.activeId ? 'active' : ''}`;
-        const titleSpan = document.createElement('span');
-        titleSpan.innerText = file.title;
-        titleSpan.onclick = () => loadInstance(id);
-        div.appendChild(titleSpan);
+    const ids = Object.keys(currentData.files);
+    const pinned = ids.filter(id => currentData.files[id].pinned);
+    const others = ids.filter(id => !currentData.files[id].pinned);
 
-        const actions = document.createElement('div');
-        actions.className = 'instance-actions';
-        const renameBtn = document.createElement('button');
-        renameBtn.className = 'mini';
-        renameBtn.title = 'Renomear';
-        renameBtn.innerText = '✎';
-        renameBtn.onclick = (e) => { e.stopPropagation(); renameInstance(id); };
+    function appendGroup(list) {
+        list.forEach(id => {
+            const file = currentData.files[id];
+            if (!file) return;
+            if (query && !file.title.toLowerCase().includes(query)) return;
+            const div = document.createElement('div');
+            div.className = `instance-item ${id === currentData.activeId ? 'active' : ''} ${file.pinned ? 'pinned' : ''}`;
+            const titleSpan = document.createElement('span');
+            titleSpan.innerText = file.title;
+            titleSpan.onclick = () => loadInstance(id);
+            div.appendChild(titleSpan);
 
-        const dupBtn = document.createElement('button');
-        dupBtn.className = 'mini';
-        dupBtn.title = 'Duplicar';
-        dupBtn.innerText = '⎘';
-        dupBtn.onclick = (e) => { e.stopPropagation(); duplicateInstance(id); };
+            const actions = document.createElement('div');
+            actions.className = 'instance-actions';
 
-        actions.appendChild(renameBtn);
-        actions.appendChild(dupBtn);
-        div.appendChild(actions);
+            const pinBtn = document.createElement('button');
+            pinBtn.className = 'mini';
+            pinBtn.title = file.pinned ? 'Despin' : 'Pin';
+            pinBtn.innerText = file.pinned ? '★' : '☆';
+            pinBtn.onclick = (e) => { e.stopPropagation(); togglePin(id); };
 
-        instanceList.appendChild(div);
-    });
+            const renameBtn = document.createElement('button');
+            renameBtn.className = 'mini';
+            renameBtn.title = 'Renomear';
+            renameBtn.innerText = '✎';
+            renameBtn.onclick = (e) => { e.stopPropagation(); renameInstance(id); };
+
+            const dupBtn = document.createElement('button');
+            dupBtn.className = 'mini';
+            dupBtn.title = 'Duplicar';
+            dupBtn.innerText = '⎘';
+            dupBtn.onclick = (e) => { e.stopPropagation(); duplicateInstance(id); };
+
+            actions.appendChild(pinBtn);
+            actions.appendChild(renameBtn);
+            actions.appendChild(dupBtn);
+            div.appendChild(actions);
+
+            instanceList.appendChild(div);
+        });
+    }
+
+    // show pinned first, then others
+    appendGroup(pinned);
+    appendGroup(others);
 }
 
 function updateUIStatus() {
@@ -109,6 +140,7 @@ function updateUIStatus() {
 function manualSave() {
     if (!currentData.activeId) return;
     currentData.files[currentData.activeId].content = editor.value;
+    pushHistoryForActiveFile(true);
     saveToDisk();
     isDirty = false;
     updateUIStatus();
@@ -132,6 +164,8 @@ editor.addEventListener('input', () => {
     updateStats();
     if (settings.autosave) {
         currentData.files[currentData.activeId].content = editor.value;
+        // push history but throttled to avoid flooding
+        pushHistoryForActiveFile(false);
         saveToDisk();
         isDirty = false;
     }
@@ -263,8 +297,140 @@ function updateStats() {
     const text = editor.value || '';
     const chars = text.length;
     const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-    statsEl.innerText = `${words} palavras • ${chars} caracteres`;
+    const minutes = words ? Math.max(1, Math.round(words / 200)) : 0;
+    statsEl.innerText = `${words} palavras • ${chars} caracteres • ${minutes} min leitura`;
 }
+
+// --- Version history helpers ---
+function pushHistoryForActiveFile(force = false) {
+    if (!currentData.activeId) return;
+    const file = currentData.files[currentData.activeId];
+    if (!file) return;
+    file.history = file.history || [];
+    const last = file.history[file.history.length - 1];
+    const now = Date.now();
+    if (!force && last && (now - last.ts) < 60000) return; // throttle: 60s
+    // avoid duplicate consecutive snapshots
+    const currentContent = editor.value || file.content || '';
+    if (last && last.content === currentContent) return;
+    file.history.push({ content: currentContent, title: file.title, ts: now });
+    // cap history
+    if (file.history.length > 40) file.history.shift();
+}
+
+async function openHistory() {
+    if (!currentData.activeId) return;
+    await showHistoryModal(currentData.activeId);
+}
+
+function togglePin(id) {
+    const file = currentData.files[id];
+    if (!file) return;
+    file.pinned = !file.pinned;
+    saveToDisk();
+    renderSidebar();
+}
+
+function showHistoryModal(id) {
+    return new Promise(resolve => {
+        const file = currentData.files[id];
+        const hist = (file && file.history) ? file.history.slice().reverse() : [];
+        modalTitle.textContent = 'Histórico';
+        modalMessage.style.display = 'none';
+        modalInput.style.display = 'none';
+        const body = modalOverlay.querySelector('.modal-body');
+        const container = document.createElement('div');
+        container.className = 'history-list';
+        if (!hist.length) {
+            const empty = document.createElement('p');
+            empty.textContent = 'Sem versões salvas.';
+            container.appendChild(empty);
+        } else {
+            hist.forEach((h, idx) => {
+                const row = document.createElement('div');
+                row.className = 'history-row';
+                const meta = document.createElement('div');
+                meta.className = 'history-meta';
+                meta.textContent = new Date(h.ts).toLocaleString();
+                const previewEl = document.createElement('div');
+                previewEl.className = 'history-preview';
+                previewEl.innerText = (h.content || '').substring(0, 240).replace(/\n/g, ' ');
+                const actions = document.createElement('div');
+                actions.className = 'history-actions';
+                const restoreBtn = document.createElement('button');
+                restoreBtn.className = 'btn';
+                restoreBtn.textContent = 'Restaurar';
+                restoreBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    const ok = await showConfirm('Restaurar versão', `Restaurar a versão de ${new Date(h.ts).toLocaleString()}? Isso substituirá o conteúdo atual.`, 'Restaurar', 'Cancelar');
+                    if (!ok) return;
+                    // push current as snapshot before restoring
+                    pushHistoryForActiveFile(true);
+                    file.content = h.content;
+                    saveToDisk();
+                    loadInstance(id);
+                    cleanup();
+                    resolve(true);
+                };
+                actions.appendChild(restoreBtn);
+                row.appendChild(meta);
+                row.appendChild(previewEl);
+                row.appendChild(actions);
+                container.appendChild(row);
+            });
+        }
+        // append and show
+        body.appendChild(container);
+        modalConfirmBtn.textContent = 'Fechar';
+        modalCancelBtn.style.display = 'none';
+
+        const onClose = () => { cleanup(); resolve(false); };
+        modalConfirmBtn.addEventListener('click', onClose);
+        modalOverlay.classList.remove('hidden');
+        modalOverlay.setAttribute('aria-hidden', 'false');
+
+        function cleanup() {
+            modalOverlay.classList.add('hidden');
+            modalOverlay.setAttribute('aria-hidden', 'true');
+            modalMessage.style.display = '';
+            modalInput.style.display = 'none';
+            modalConfirmBtn.textContent = 'OK';
+            modalCancelBtn.style.display = '';
+            modalConfirmBtn.removeEventListener('click', onClose);
+            container.remove();
+            modalCancelBtn.style.display = '';
+        }
+    });
+}
+
+// --- Find & Replace (uses sequential modals) ---
+async function findReplace() {
+    if (!currentData.activeId) return;
+    const r1 = await showModal({ title: 'Buscar', message: 'Termo a buscar:', showInput: true, defaultValue: '', confirmText: 'OK', cancelText: 'Cancelar' });
+    if (!r1.confirmed) return;
+    const search = (r1.value || '').trim();
+    if (!search) return;
+    const r2 = await showModal({ title: 'Substituir', message: 'Substituir por (deixe vazio para remover):', showInput: true, defaultValue: '', confirmText: 'OK', cancelText: 'Cancelar' });
+    if (!r2.confirmed) return;
+    const replace = (r2.value || '');
+    const all = await showConfirm('Substituir todas?', `Substituir todas as ocorrências de "${search}"?`, 'Sim', 'Não');
+    const content = editor.value || '';
+    if (all) {
+        const re = new RegExp(escapeRegex(search), 'g');
+        const newContent = content.replace(re, replace);
+        editor.value = newContent;
+    } else {
+        const idx = content.indexOf(search);
+        if (idx === -1) return;
+        editor.value = content.slice(0, idx) + replace + content.slice(idx + search.length);
+    }
+    isDirty = true;
+    updatePreview();
+    updateStats();
+    if (settings.autosave) manualSave();
+}
+
+function escapeRegex(str) { return str.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&'); }
 
 // --- Modal helpers (promise-based) ---
 function showModal({ title = '', message = '', showInput = false, defaultValue = '', placeholder = '', confirmText = 'OK', cancelText = 'Cancelar' } = {}) {

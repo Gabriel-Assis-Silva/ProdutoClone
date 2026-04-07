@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dark MD Editor</title>
+    <title>FluxoMD - Markdown Editor</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -38,6 +38,8 @@
             <div class="group file-actions">
                 <button onclick="renameCurrentInstance()" title="Renomear">Renomear</button>
                 <button onclick="duplicateCurrentInstance()" title="Duplicar">Duplicar</button>
+                <button onclick="openHistory()" title="Histórico">Histórico</button>
+                <button onclick="findReplace()" title="Buscar/Substituir">Buscar/Substituir</button>
                 <button onclick="exportCurrentInstance('md')" title="Exportar Markdown">Exportar MD</button>
                 <button onclick="exportCurrentInstance('html')" title="Exportar HTML">Exportar HTML</button>
                 <span id="stats"></span>

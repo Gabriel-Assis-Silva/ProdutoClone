@@ -48,6 +48,17 @@ button { padding: 5px 12px; cursor: pointer; background: #444; color: white; bor
     textarea, #preview { width: 100%; }
 }
 
+/* History list inside modal */
+.history-list { display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow: auto; }
+.history-row { background: #111; padding: 10px; border-radius: 6px; display: flex; gap: 10px; align-items: center; }
+.history-meta { min-width: 180px; color: #ccc; font-size: 13px; }
+.history-preview { flex: 1; color: #ddd; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history-actions { display: flex; gap: 8px; }
+.history-row .btn { padding: 6px 10px; }
+
+/* Pinned item styling */
+.instance-item.pinned { background: linear-gradient(90deg, rgba(7,54,66,0.14), transparent); border-left-color: #ffb86b; }
+
 /* Modal (in-page prompt/confirm) */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 9999; }
 .modal-overlay.hidden { display: none; }
