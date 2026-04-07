@@ -4,6 +4,14 @@ const instanceList = document.getElementById('instance-list');
 const saveBtn = document.getElementById('save-btn');
 const saveStatus = document.getElementById('save-status');
 const autosaveCheck = document.getElementById('autosave-check');
+const searchInput = document.getElementById('search-input');
+const statsEl = document.getElementById('stats');
+const modalOverlay = document.getElementById('app-modal');
+const modalTitle = document.getElementById('modal-title');
+const modalMessage = document.getElementById('modal-message');
+const modalInput = document.getElementById('modal-input');
+const modalConfirmBtn = document.getElementById('modal-confirm');
+const modalCancelBtn = document.getElementById('modal-cancel');
 
 let currentData = UserData.getAllData();
 let settings = UserData.getSettings();
@@ -12,15 +20,22 @@ let isDirty = false;
 window.onload = () => {
     autosaveCheck.checked = settings.autosave;
     renderSidebar();
+    if (searchInput) {
+        searchInput.value = '';
+        searchInput.addEventListener('input', renderSidebar);
+    }
     if (currentData.activeId && currentData.files[currentData.activeId]) {
         loadInstance(currentData.activeId);
     } else {
         editor.disabled = true;
+        updateStats();
     }
 };
 
-function createNewInstance() {
-    const name = prompt("Nome do arquivo:", "novo-arquivo.md");
+async function createNewInstance() {
+    const res = await showModal({ title: 'Novo arquivo', message: 'Nome do arquivo:', showInput: true, defaultValue: 'novo-arquivo.md', confirmText: 'Criar', cancelText: 'Cancelar' });
+    if (!res.confirmed) return;
+    const name = (res.value || '').trim();
     if (!name) return;
     const id = 'file_' + Date.now();
     currentData.files[id] = { title: name, content: "" };
@@ -30,27 +45,53 @@ function createNewInstance() {
     loadInstance(id);
 }
 
-function loadInstance(id) {
+async function loadInstance(id) {
     if (isDirty && !settings.autosave) {
-        if (!confirm("Existem alterações não salvas. Sair mesmo assim?")) return;
+        const keep = await showConfirm('Alterações não salvas', 'Existem alterações não salvas. Sair mesmo assim?', 'Sair', 'Cancelar');
+        if (!keep) return;
     }
     currentData.activeId = id;
-    editor.value = currentData.files[id].content;
+    editor.value = currentData.files[id].content || '';
     editor.disabled = false;
     isDirty = false;
     updateUIStatus();
     updatePreview();
+    updateStats();
     renderSidebar();
     saveToDisk();
 }
 
 function renderSidebar() {
     instanceList.innerHTML = "";
+    const query = (searchInput && searchInput.value) ? searchInput.value.toLowerCase().trim() : '';
     Object.keys(currentData.files).forEach(id => {
+        const file = currentData.files[id];
+        if (query && !file.title.toLowerCase().includes(query)) return;
         const div = document.createElement('div');
         div.className = `instance-item ${id === currentData.activeId ? 'active' : ''}`;
-        div.innerText = currentData.files[id].title;
-        div.onclick = () => loadInstance(id);
+        const titleSpan = document.createElement('span');
+        titleSpan.innerText = file.title;
+        titleSpan.onclick = () => loadInstance(id);
+        div.appendChild(titleSpan);
+
+        const actions = document.createElement('div');
+        actions.className = 'instance-actions';
+        const renameBtn = document.createElement('button');
+        renameBtn.className = 'mini';
+        renameBtn.title = 'Renomear';
+        renameBtn.innerText = '✎';
+        renameBtn.onclick = (e) => { e.stopPropagation(); renameInstance(id); };
+
+        const dupBtn = document.createElement('button');
+        dupBtn.className = 'mini';
+        dupBtn.title = 'Duplicar';
+        dupBtn.innerText = '⎘';
+        dupBtn.onclick = (e) => { e.stopPropagation(); duplicateInstance(id); };
+
+        actions.appendChild(renameBtn);
+        actions.appendChild(dupBtn);
+        div.appendChild(actions);
+
         instanceList.appendChild(div);
     });
 }
@@ -85,8 +126,10 @@ function toggleAutosave() {
 }
 
 editor.addEventListener('input', () => {
+    if (!currentData.activeId) return;
     isDirty = true;
     updatePreview();
+    updateStats();
     if (settings.autosave) {
         currentData.files[currentData.activeId].content = editor.value;
         saveToDisk();
@@ -101,7 +144,7 @@ function updatePreview() {
 
 // Atalhos
 window.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
         e.preventDefault();
         manualSave();
     }
@@ -139,12 +182,136 @@ function applyStyle(type) {
     editor.focus();
 }
 
-function deleteCurrentInstance() {
+async function deleteCurrentInstance() {
     if (!currentData.activeId) return;
-    if (confirm("Excluir este arquivo?")) {
-        delete currentData.files[currentData.activeId];
-        currentData.activeId = Object.keys(currentData.files)[0] || null;
-        saveToDisk();
-        location.reload();
+    const ok = await showConfirm('Excluir arquivo', 'Excluir este arquivo?', 'Excluir', 'Cancelar');
+    if (!ok) return;
+    delete currentData.files[currentData.activeId];
+    currentData.activeId = Object.keys(currentData.files)[0] || null;
+    saveToDisk();
+    location.reload();
+}
+
+// --- New: rename / duplicate / export / stats ---
+function renameCurrentInstance() {
+    if (!currentData.activeId) return;
+    renameInstance(currentData.activeId);
+}
+
+async function renameInstance(id) {
+    const file = currentData.files[id];
+    const res = await showModal({ title: 'Renomear arquivo', message: 'Novo nome:', showInput: true, defaultValue: file.title || '', confirmText: 'Renomear', cancelText: 'Cancelar' });
+    if (!res.confirmed) return;
+    const newName = (res.value || '').trim();
+    if (!newName) return;
+    currentData.files[id].title = newName;
+    saveToDisk();
+    renderSidebar();
+    updateUIStatus();
+}
+
+function duplicateCurrentInstance() {
+    if (!currentData.activeId) return;
+    duplicateInstance(currentData.activeId);
+}
+
+function duplicateInstance(id) {
+    const newId = 'file_' + Date.now();
+    const original = currentData.files[id];
+    const baseTitle = original.title.replace(/^Copy of\s*/, '');
+    let copyTitle = `Copy of ${baseTitle}`;
+    let i = 1;
+    while (Object.values(currentData.files).some(f => f.title === copyTitle)) {
+        copyTitle = `Copy (${i}) of ${baseTitle}`;
+        i++;
     }
+    currentData.files[newId] = { title: copyTitle, content: original.content };
+    currentData.activeId = newId;
+    saveToDisk();
+    renderSidebar();
+    loadInstance(newId);
+}
+
+function exportCurrentInstance(format) {
+    if (!currentData.activeId) return;
+    const file = currentData.files[currentData.activeId];
+    const filenameBase = file.title.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-\.]/g, '');
+    if (format === 'md') {
+        const blob = new Blob([file.content], { type: 'text/markdown' });
+        downloadBlob(blob, `${filenameBase}.md`);
+    } else if (format === 'html') {
+        const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(file.title)}</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font-family:Segoe UI,Arial; padding:20px; background:#fff; color:#222;}</style></head><body>${marked.parse(file.content)}</body></html>`;
+        const blob = new Blob([html], { type: 'text/html' });
+        downloadBlob(blob, `${filenameBase}.html`);
+    }
+}
+
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 500);
+}
+
+function escapeHtml(str) { return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+function updateStats() {
+    if (!statsEl) return;
+    const text = editor.value || '';
+    const chars = text.length;
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    statsEl.innerText = `${words} palavras • ${chars} caracteres`;
+}
+
+// --- Modal helpers (promise-based) ---
+function showModal({ title = '', message = '', showInput = false, defaultValue = '', placeholder = '', confirmText = 'OK', cancelText = 'Cancelar' } = {}) {
+    return new Promise(resolve => {
+        if (!modalOverlay) return resolve({ confirmed: false });
+        modalTitle.textContent = title || '';
+        modalMessage.textContent = message || '';
+        modalInput.value = defaultValue || '';
+        modalInput.placeholder = placeholder || '';
+        modalInput.style.display = showInput ? 'block' : 'none';
+        modalConfirmBtn.textContent = confirmText;
+        modalCancelBtn.textContent = cancelText;
+
+        const cleanup = () => {
+            modalOverlay.classList.add('hidden');
+            modalOverlay.setAttribute('aria-hidden', 'true');
+            modalConfirmBtn.removeEventListener('click', onConfirm);
+            modalCancelBtn.removeEventListener('click', onCancel);
+            document.removeEventListener('keydown', onKeyDown);
+        };
+
+        const onConfirm = () => {
+            cleanup();
+            resolve({ confirmed: true, value: modalInput.value });
+        };
+
+        const onCancel = () => {
+            cleanup();
+            resolve({ confirmed: false });
+        };
+
+        const onKeyDown = (e) => {
+            if (e.key === 'Escape') { onCancel(); }
+            if (e.key === 'Enter') { if (showInput) { onConfirm(); } }
+        };
+
+        modalConfirmBtn.addEventListener('click', onConfirm);
+        modalCancelBtn.addEventListener('click', onCancel);
+        document.addEventListener('keydown', onKeyDown);
+
+        modalOverlay.classList.remove('hidden');
+        modalOverlay.setAttribute('aria-hidden', 'false');
+        setTimeout(() => { if (showInput) modalInput.focus(); else modalConfirmBtn.focus(); }, 10);
+    });
+}
+
+async function showConfirm(title, message, confirmText = 'OK', cancelText = 'Cancelar') {
+    const r = await showModal({ title, message, showInput: false, confirmText, cancelText });
+    return r.confirmed;
 }

@@ -14,6 +14,9 @@
             <h3>Documentos</h3>
             <button onclick="createNewInstance()" class="btn-new" title="Novo">+</button>
         </div>
+        <div class="sidebar-search">
+            <input type="text" id="search-input" placeholder="Buscar..." />
+        </div>
         <div id="instance-list" class="instance-list"></div>
         <div class="sidebar-footer">
             <label class="autosave-toggle">
@@ -31,6 +34,15 @@
                 <button onclick="applyStyle('heading')">H</button>
                 <button onclick="applyStyle('code')">&lt;/&gt;</button>
             </div>
+
+            <div class="group file-actions">
+                <button onclick="renameCurrentInstance()" title="Renomear">Renomear</button>
+                <button onclick="duplicateCurrentInstance()" title="Duplicar">Duplicar</button>
+                <button onclick="exportCurrentInstance('md')" title="Exportar Markdown">Exportar MD</button>
+                <button onclick="exportCurrentInstance('html')" title="Exportar HTML">Exportar HTML</button>
+                <span id="stats"></span>
+            </div>
+
             <div class="group">
                 <span id="save-status"></span>
                 <button id="save-btn" onclick="manualSave()" class="btn-save">Salvar</button>
@@ -45,6 +57,22 @@
     </main>
 
     <script src="userdata.js"></script>
+    <!-- Inline modal for confirmation and prompts (replaces native confirm/prompt) -->
+    <div id="app-modal" class="modal-overlay hidden" aria-hidden="true">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <div class="modal-header">
+                <h4 id="modal-title"></h4>
+            </div>
+            <div class="modal-body">
+                <p id="modal-message"></p>
+                <input id="modal-input" class="modal-input" type="text" />
+            </div>
+            <div class="modal-actions">
+                <button id="modal-cancel" class="btn">Cancelar</button>
+                <button id="modal-confirm" class="btn btn-primary">OK</button>
+            </div>
+        </div>
+    </div>
     <script src="script.js"></script>
 </body>
 </html>
